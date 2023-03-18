@@ -6,10 +6,12 @@ set(EXAMPLES rain)
 # Overall project name, used to hold all our examples.
 set(NAME unicorn-cpp-examples)
 
+# Configure some hardware specific bits
+set(PICO_BOARD pico_w)
 include(pimoroni_pico_import.cmake)
 include(pico_sdk_import.cmake)
 
-# Gooey boilerplate
+# Basic project setup
 project(${NAME} C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -29,8 +31,12 @@ foreach(EXAMPLE IN LISTS EXAMPLES)
     # Add an executable target for each named file. 
     add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
 
-    # Link some suitable default libraries to it.
-    target_link_libraries(${EXAMPLE} pico_stdlib hardware_pio hardware_adc hardware_dma pico_graphics galactic_unicorn)
+    # Link some suitable default libraries and headers to it.
+    target_include_directories(${EXAMPLE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+    target_link_libraries(${EXAMPLE} 
+                          pico_stdlib pico_cyw43_arch_lwip_threadsafe_background
+                          hardware_pio hardware_adc hardware_dma
+                          pico_graphics galactic_unicorn)
 
     # And some other Pico-related setup.
     pico_enable_stdio_usb(${EXAMPLE} 1)
