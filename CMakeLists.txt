@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.12)
 
-# Change your executable name to something creative!
-set(NAME pico-boilerplate) # <-- Name your project/executable here!
+# A list of all the different examples; each will build a uf2
+set(EXAMPLES rain)
+
+# Overall project name, used to hold all our examples.
+set(NAME unicorn-cpp-examples)
 
 include(pimoroni_pico_import.cmake)
 include(pico_sdk_import.cmake)
@@ -14,32 +17,34 @@ set(CMAKE_CXX_STANDARD 17)
 # Initialize the SDK
 pico_sdk_init()
 
-# Add your source files
-add_executable(${NAME}
-    main.cpp # <-- Add source files here!
-)
-
 # Include required libraries
 # This assumes `pimoroni-pico` is stored alongside your project
-include(common/pimoroni_i2c)
-include(common/pimoroni_bus)
 include(libraries/bitmap_fonts/bitmap_fonts)
-include(libraries/hershey_fonts/hershey_fonts)
-include(libraries/pico_explorer/pico_explorer)
+include(libraries/pico_graphics/pico_graphics)
+include(libraries/galactic_unicorn/galactic_unicorn)
 
-# Don't forget to link the libraries you need!
-target_link_libraries(${NAME}
-    pimoroni_i2c
-    pico_explorer # <-- List libraries here!
-)
+# Assemble each example details
+foreach(EXAMPLE IN LISTS EXAMPLES)
 
-# create map/bin/hex file etc.
-pico_add_extra_outputs(${NAME})
+    # Add an executable target for each named file. 
+    add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
 
-# Set up files for the release packages
+    # Link some suitable default libraries to it.
+    target_link_libraries(${EXAMPLE} pico_stdlib hardware_pio hardware_adc hardware_dma pico_graphics galactic_unicorn)
+
+    # And some other Pico-related setup.
+    pico_enable_stdio_usb(${EXAMPLE} 1)
+    pico_add_extra_outputs(${EXAMPLE})
+
+    # Install junk too.
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${EXAMPLE}.uf2 DESTINATION .)
+
+endforeach()
+
+# Add any other files needed for release
 install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.uf2
     ${CMAKE_CURRENT_LIST_DIR}/README.md
+    ${CMAKE_CURRENT_LIST_DIR}/LICENSE
     DESTINATION .
 )
 

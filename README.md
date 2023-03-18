@@ -1,14 +1,35 @@
-# Pico C++ Boilerplate Project <!-- omit in toc -->
+# Galactic Unicorn C(++) Examples
 
-This project is intended as a starting point for working with the Pico SDK and Pimoroni Libraries in C++.
+This is a collection of (hopefully informative!) examples for programming the
+sublime Galactic Unicorn. This project is based on Pimoroni's helpful boilerplate,
+so I've left the basic build instructions below.
 
-- [Before you start](#before-you-start)
-- [Preparing your build environment](#preparing-your-build-environment)
-- [Grab the Pimoroni libraries](#grab-the-pimoroni-libraries)
-- [Clone this boilerplate](#clone-this-boilerplate)
-- [Prepare Visual Studio Code](#prepare-visual-studio-code)
-- [Prepare your project](#prepare-your-project)
-- [Pick your LICENSE](#pick-your-license)
+Each example is a standalone single source file; CMake will produce a collection
+of `uf2` files on building, so you can install whichever one you like to your
+Unicorn.
+
+## rain
+
+A port of [my MicroPython version](https://github.com/ahnlak/unicorn-toys/blob/main/rain.py)
+of the ancient `rain` text terminal demo; raindrops on falling on your Unicorn.
+
+
+# Building
+
+Please note that I don't use Visual Studio myself, so I can't promise I haven't
+broken something in those builds. Stick to the command line for an easy life :-)
+
+Other than that, it's a normal CMake-style build:
+
+```
+mkdir build
+cd build
+cmake ..
+make
+```
+
+This should generate a collection of `uf2` files, one for each example.
+
 
 ## Before you start
 
