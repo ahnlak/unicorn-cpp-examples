@@ -68,14 +68,15 @@ export PICO_SDK_PATH="/path/to/pico-sdk"
 git clone https://github.com/pimoroni/pimoroni-pico
 ```
 
-## Clone this boilerplate
+## Clone this repo
 
 ```
-git clone https://github.com/pimoroni/pico-boilerplate
-cd pico-boilerplate
+git clone https://github.com/ahnlak/unicorn-cpp-examples
+cd unicorn-cpp-examples
 ```
 
-If you have not or don't want to set `PICO_SDK_PATH` you can edit `.vscode/settings.json` to pass the path directly to CMake.
+If you have not or don't want to set `PICO_SDK_PATH` and you are using Visual Studio Code,
+you can edit `.vscode/settings.json` to pass the path directly to CMake.
 
 ## Prepare Visual Studio Code
 
@@ -90,15 +91,3 @@ Make sure you install:
 3. CMake Tools
 4. Cortex-Debug (optional: for debugging via a Picoprobe or Pi GPIO)
 5. Markdown All in One (recommended: for preparing your own README.md)
-
-## Prepare your project
-
-Edit `CMakeLists.txt` and follow the instructions, you should make sure you:
-
-1. edit your project name
-2. include the libraries you need
-2. link the libraries to your project
-
-## Pick your LICENSE
-
-We've included a copy of BSD 3-Clause License to match that used in Raspberry Pi's Pico SDK and Pico Examples. You should review this and check it's appropriate for your project before publishing your code.
