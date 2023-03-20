@@ -65,8 +65,7 @@ int main()
                                                      pimoroni::GalacticUnicorn::HEIGHT,
                                                      nullptr );
 
-  /*
-   * Next up, we need to intialise both the Pico and the Unicorn. */
+  /* Next up, we need to intialise both the Pico and the Unicorn. */
   stdio_init_all();
   l_unicorn->init();
 

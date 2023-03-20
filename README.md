@@ -24,11 +24,14 @@ Other than that, it's a normal CMake-style build:
 ```
 mkdir build
 cd build
-cmake ..
+cmake -DWIFI_SSID="mynetwork" -DWIFI_PASSWORD="mypasswd" ..
 make
 ```
 
 This should generate a collection of `uf2` files, one for each example.
+
+
+## Troubleshooting
 
 
 ## Before you start

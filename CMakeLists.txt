@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 
 # A list of all the different examples; each will build a uf2
-set(EXAMPLES rain)
+set(EXAMPLES better_clock rain)
 
 # Overall project name, used to hold all our examples.
 set(NAME unicorn-cpp-examples)
@@ -32,11 +32,19 @@ foreach(EXAMPLE IN LISTS EXAMPLES)
     add_executable(${EXAMPLE} ${EXAMPLE}.cpp)
 
     # Link some suitable default libraries and headers to it.
+    target_compile_definitions(
+        ${EXAMPLE} PRIVATE 
+        WIFI_SSID=\"${WIFI_SSID}\"
+        WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
+        CYW43_HOST_NAME=\"GalacticUnicorn\"
+    )
     target_include_directories(${EXAMPLE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-    target_link_libraries(${EXAMPLE} 
-                          pico_stdlib pico_cyw43_arch_lwip_threadsafe_background
-                          hardware_pio hardware_adc hardware_dma
-                          pico_graphics galactic_unicorn)
+    target_link_libraries(
+        ${EXAMPLE} 
+        pico_stdlib pico_cyw43_arch_lwip_threadsafe_background
+        hardware_rtc
+        pico_graphics galactic_unicorn
+    )
 
     # And some other Pico-related setup.
     pico_enable_stdio_usb(${EXAMPLE} 1)
