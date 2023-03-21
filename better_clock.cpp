@@ -45,6 +45,16 @@
 #define NTP_PACKET_LEN           48
 #define NTP_EPOCH_OFFSET         2208988800L
 
+#define MIDDAY_HUE               1.1f
+#define MIDNIGHT_HUE             0.8f
+#define HUE_OFFSET               -0.1f
+
+#define MIDDAY_SATURATION        1.0f
+#define MIDNIGHT_SATURATION      1.0f
+
+#define MIDDAY_VALUE             0.8f
+#define MIDNIGHT_VALUE           0.3f
+
 
 /* Structs. */
 
@@ -365,6 +375,65 @@ bool checktime( int8_t p_timezone )
 
 
 /*
+ * gradient_background; lifted wholesale from clock.py
+ */
+
+void from_hsv(float h, float s, float v, uint8_t &r, uint8_t &g, uint8_t &b) {
+  float i = floor(h * 6.0f);
+  float f = h * 6.0f - i;
+  v *= 255.0f;
+  uint8_t p = v * (1.0f - s);
+  uint8_t q = v * (1.0f - f * s);
+  uint8_t t = v * (1.0f - (1.0f - f) * s);
+
+  switch (int(i) % 6) {
+    case 0: r = v; g = t; b = p; break;
+    case 1: r = q; g = v; b = p; break;
+    case 2: r = p; g = v; b = t; break;
+    case 3: r = p; g = q; b = v; break;
+    case 4: r = t; g = p; b = v; break;
+    case 5: r = v; g = p; b = q; break;
+  }
+}
+
+void gradient_background( pimoroni::PicoGraphics *p_graphics, 
+                          float p_hue, float p_sat, float p_val )
+{
+  uint8_t       l_width = pimoroni::GalacticUnicorn::WIDTH / 2;
+  uint8_t       l_r, l_g, l_b;
+  uint_fast8_t  l_x, l_y;
+
+  for ( l_x = 0; l_x <= l_width; l_x++ )
+  {
+    from_hsv( ( HUE_OFFSET * l_x / l_width ) + p_hue, p_sat, p_val, l_r, l_g, l_b );
+    p_graphics->set_pen( p_graphics->create_pen( l_r, l_g, l_b ) );
+    p_graphics->pixel( pimoroni::Point( l_x, 0 ) );
+    p_graphics->pixel( pimoroni::Point( l_x, pimoroni::GalacticUnicorn::HEIGHT-1 ) );
+    if ( l_x == 9 )
+    {
+      p_graphics->pixel( pimoroni::Point( 9, 1 ) );
+      p_graphics->pixel( pimoroni::Point( 9, pimoroni::GalacticUnicorn::HEIGHT-2 ) );
+      p_graphics->pixel( pimoroni::Point( 44, 1 ) );
+      p_graphics->pixel( pimoroni::Point( 44, pimoroni::GalacticUnicorn::HEIGHT-2 ) );
+    }
+    if ( l_x < 9 || l_x > 43 )
+    {
+      for ( l_y = 1; l_y < pimoroni::GalacticUnicorn::HEIGHT-1; l_y++ )
+      {
+        p_graphics->pixel( pimoroni::Point( l_x, l_y ) );
+        p_graphics->pixel( pimoroni::Point( pimoroni::GalacticUnicorn::WIDTH - l_x, l_y ) );
+      }
+    }
+    p_graphics->pixel( pimoroni::Point( pimoroni::GalacticUnicorn::WIDTH - l_x, 0 ) );
+    p_graphics->pixel( pimoroni::Point( pimoroni::GalacticUnicorn::WIDTH - l_x, pimoroni::GalacticUnicorn::HEIGHT-1 ) );
+  }
+
+  /* All done. */
+  return;
+}
+
+
+/*
  * main - entry point, from which everything is controlled.
  */
 
@@ -510,6 +579,26 @@ int main()
     /* Start the frame by clearing the screen. */
     l_graphics->set_pen( l_black_pen );
     l_graphics->clear();
+
+    /* Render the background gradient, based on the time of day. */
+    rtc_get_datetime( &l_time );
+
+    uint_fast16_t l_daysecs;
+    float         l_daypcnt, l_midpcnt;
+    float         l_hue, l_sat, l_val;
+
+    l_daysecs = ( ( ( l_time.hour * 60 ) + l_time.min ) * 60 ) + l_time.sec;
+    l_daypcnt = l_daysecs / 86400.0f;
+    l_midpcnt = 1.0f - ( ( cos( l_daypcnt * 3.14159 * 2 ) + 1 ) / 2 );
+    printf( "Daysecs %d, daypercent %f, percent to midday = %f\n", l_daysecs, l_daypcnt, l_midpcnt );
+
+    l_hue = ((MIDDAY_HUE - MIDNIGHT_HUE) * l_midpcnt) + MIDNIGHT_HUE;
+    l_sat = ((MIDDAY_SATURATION - MIDNIGHT_SATURATION) * l_midpcnt) + MIDNIGHT_SATURATION;
+    l_val = ((MIDDAY_VALUE - MIDNIGHT_VALUE) * l_midpcnt) + MIDNIGHT_VALUE;
+
+    gradient_background( l_graphics, l_hue, l_sat, l_val );
+
+    /* And finally switch back to white. */
     l_graphics->set_pen( l_white_pen );
 
     /* If we're adjusting timezones, just display that. */
@@ -543,7 +632,6 @@ int main()
     else
     {
       /* Otherwise, render the current time, in hours minutes and seconds. */
-      rtc_get_datetime( &l_time );
 
       /* Hours first. */
       NumericFont::render( l_graphics, 10, 2, l_time.hour/10 );
