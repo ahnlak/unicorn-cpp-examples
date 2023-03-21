@@ -173,6 +173,73 @@ void ntpcb_dns( const char *p_name, const ip_addr_t *p_addr, void *p_ntpstate )
   return;
 }
 
+datetime_t *ntp_apply_timezone( uint32_t p_ntptime, int8_t p_timezone )
+{
+  static datetime_t l_datetime;
+  time_t            l_timet;
+  struct tm        *l_tmstruct;
+
+  /* The time will be in seconds since 1900; convert it to a tmstruct. */
+  l_timet = p_ntptime - NTP_EPOCH_OFFSET + ( 3600 * p_timezone );
+  l_tmstruct = gmtime( &l_timet );
+
+  l_datetime.year  = l_tmstruct->tm_year;
+  l_datetime.month = l_tmstruct->tm_mon;
+  l_datetime.day   = l_tmstruct->tm_mday;
+  l_datetime.dotw  = l_tmstruct->tm_wday;
+  l_datetime.hour  = l_tmstruct->tm_hour;
+  l_datetime.min   = l_tmstruct->tm_min;
+  l_datetime.sec   = l_tmstruct->tm_sec;
+
+  /* And return our internal datetime. */
+  return &l_datetime;
+}
+
+
+/*
+ * rtc_add_hours - this is a horrible, horrible bodge to try and handle timezones.
+ *                 Basically, we need to add or subtract hours to a datetime_t
+ *                 but there aren't any manipulation functions. Easiest is to 
+ *                 turn it into a time_t, do the math and turn it back. Horrible.
+ */
+
+datetime_t *rtc_add_hours( const datetime_t *p_rtctime, int8_t p_offset )
+{
+  static datetime_t l_datetime;
+  time_t            l_timet;
+  struct tm         l_tmstruct;
+  struct tm        *l_tmsptr;
+
+  /* Convert the datetime_t into a tmstruct. */
+  l_tmstruct.tm_year = p_rtctime->year;
+  l_tmstruct.tm_mon  = p_rtctime->month;
+  l_tmstruct.tm_mday = p_rtctime->day;
+  l_tmstruct.tm_wday = p_rtctime->dotw;
+  l_tmstruct.tm_hour = p_rtctime->hour;
+  l_tmstruct.tm_min  = p_rtctime->min;
+  l_tmstruct.tm_sec  = p_rtctime->sec;
+
+  /* Get a time_t out of that. */
+  l_timet = mktime( &l_tmstruct );
+
+  /* Add / subtract our time. */
+  l_timet += ( 3600 * p_offset );
+
+  /* Turn it back (!) */
+  l_tmsptr = gmtime( &l_timet );
+
+  l_datetime.year  = l_tmsptr->tm_year;
+  l_datetime.month = l_tmsptr->tm_mon;
+  l_datetime.day   = l_tmsptr->tm_mday;
+  l_datetime.dotw  = l_tmsptr->tm_wday;
+  l_datetime.hour  = l_tmsptr->tm_hour;
+  l_datetime.min   = l_tmsptr->tm_min;
+  l_datetime.sec   = l_tmsptr->tm_sec;
+
+  /* And return our internal datetime. */
+  return &l_datetime;
+}
+
 
 /*
  * checktime - attempts to fetch the time via NTP, and set the RP2040's clock
@@ -181,7 +248,7 @@ void ntpcb_dns( const char *p_name, const ip_addr_t *p_addr, void *p_ntpstate )
  *             without interrupting updates.
  */
 
-bool checktime( void )
+bool checktime( int8_t p_timezone )
 {
   static bool       l_active = false;
   static bool       l_connecting = false;
@@ -258,19 +325,8 @@ bool checktime( void )
       /* Wait until the time is set. */
       if ( l_ntpstate.time > 0 )
       {
-        /* The time will be in seconds since 1900; convert it to a tmstruct. */
-        l_timet = l_ntpstate.time - NTP_EPOCH_OFFSET;
-        l_tmstruct = gmtime( &l_timet );
-
-        l_rtctime.year  = l_tmstruct->tm_year;
-        l_rtctime.month = l_tmstruct->tm_mon;
-        l_rtctime.day   = l_tmstruct->tm_mday;
-        l_rtctime.dotw  = l_tmstruct->tm_wday;
-        l_rtctime.hour  = l_tmstruct->tm_hour;
-        l_rtctime.min   = l_tmstruct->tm_min;
-        l_rtctime.sec   = l_tmstruct->tm_sec;
-
-        rtc_set_datetime( &l_rtctime );
+        /* Apply our timezone and update the RTC with this time. */
+        rtc_set_datetime( ntp_apply_timezone( l_ntpstate.time, p_timezone ) );
 
         /* Lastly, tear down the connection and indicate it's all worked. */
         cyw43_arch_deinit();
@@ -316,9 +372,13 @@ int main()
 {
   int                               l_black_pen, l_white_pen;
   bool                              l_blink;
+  uint_fast8_t                      l_adjusted_brightness = 0, l_adjusted_timezone = 0;
   float                             l_base_brightness;
   uint64_t                          l_current_tick, l_dim_tick, l_ntp_tick;
+  uint_fast8_t                      l_index;
   datetime_t                        l_time;
+  datetime_t                       *l_newtime;
+  int8_t                            l_timezone = 0;
   pimoroni::GalacticUnicorn        *l_unicorn;
   pimoroni::PicoGraphics_PenRGB565 *l_graphics;
 
@@ -380,12 +440,68 @@ int main()
          ( l_current_tick > ( l_ntp_tick + ( BC_NTP_FREQUENCY_SECS*BC_USECS_IN_SEC ) ) ) )
     {
       /* If we succeed, we're done until the next check. */
-      if ( checktime() )
+      if ( checktime( l_timezone ) )
       {
         l_ntp_tick = l_current_tick;
       }
     }
 
+
+    /*
+     * User Input.
+     */
+
+    /* First up, brightness - controlled by the Unicorn's LUX buttons. */
+    if ( l_unicorn->is_pressed( pimoroni::GalacticUnicorn::SWITCH_BRIGHTNESS_UP ) )
+    {
+      if ( ( l_base_brightness += 0.1f ) > 1.0f )
+      {
+        l_base_brightness = 1.0f;
+      }
+      dimmer( l_unicorn, l_base_brightness );
+      l_adjusted_brightness = 4;
+    }
+    if ( l_unicorn->is_pressed( pimoroni::GalacticUnicorn::SWITCH_BRIGHTNESS_DOWN ) )
+    {
+      if ( ( l_base_brightness -= 0.1f ) < 0.1f )
+      {
+        l_base_brightness = 0.1f;
+      }
+      dimmer( l_unicorn, l_base_brightness );
+      l_adjusted_brightness = 4;
+    }
+
+    /* Next, adjusting the timezone using the volume buttons (like clock.py) */
+    if ( l_unicorn->is_pressed( pimoroni::GalacticUnicorn::SWITCH_VOLUME_UP ) )
+    {
+      if ( l_timezone < 14 )
+      {
+        /* Increment the timezone, and add that hour to the RTC. */
+        l_adjusted_timezone = 4;
+        l_timezone++;
+        rtc_get_datetime( &l_time );
+        l_newtime = rtc_add_hours( &l_time, 1 );
+        rtc_set_datetime( l_newtime );
+
+        /* Need to wait for the RTC to actually update. */
+        sleep_us( 64 );
+      }
+    }
+    if ( l_unicorn->is_pressed( pimoroni::GalacticUnicorn::SWITCH_VOLUME_DOWN ) )
+    {
+      if ( l_timezone > -12 )
+      {
+        /* Increment the timezone, and add that hour to the RTC. */
+        l_adjusted_timezone = 4;
+        l_timezone--;
+        rtc_get_datetime( &l_time );
+        l_newtime = rtc_add_hours( &l_time, -1 );
+        rtc_set_datetime( l_newtime );
+
+        /* Need to wait for the RTC to actually update. */
+        sleep_us( 64 );
+      }
+    }
 
     /*
      * Render.
@@ -394,33 +510,80 @@ int main()
     /* Start the frame by clearing the screen. */
     l_graphics->set_pen( l_black_pen );
     l_graphics->clear();
-
-    /* Render the current time, in hours minutes and seconds. */
     l_graphics->set_pen( l_white_pen );
-    rtc_get_datetime( &l_time );
 
-    /* Hours first. */
-    NumericFont::render( l_graphics, 10, 2, l_time.hour/10 );
-    NumericFont::render( l_graphics, 15, 2, l_time.hour%10 );
-
-    /* Then minutes. */
-    NumericFont::render( l_graphics, 22, 2, l_time.min/10 );
-    NumericFont::render( l_graphics, 27, 2, l_time.min%10 );
-
-    /* And lastly seconds. */
-    NumericFont::render( l_graphics, 34, 2, l_time.sec/10 );
-    NumericFont::render( l_graphics, 39, 2, l_time.sec%10 );
-
-    /* Blinking separators next. */
-    if ( l_blink )
+    /* If we're adjusting timezones, just display that. */
+    if ( l_adjusted_timezone > 0 )
     {
-      l_graphics->pixel( pimoroni::Point( 20, 4 ) );
-      l_graphics->pixel( pimoroni::Point( 20, 6 ) );
+      l_adjusted_timezone--;
 
-      l_graphics->pixel( pimoroni::Point( 32, 4 ) );
-      l_graphics->pixel( pimoroni::Point( 32, 6 ) );
+      /* "UTC" */
+      NumericFont::render( l_graphics, 10, 2, 10 );
+      NumericFont::render( l_graphics, 15, 2, 11 );
+      NumericFont::render( l_graphics, 20, 2, 12 );
+
+      /* Sign. */
+      if ( l_timezone > 0 )
+      {
+        NumericFont::render( l_graphics, 25, 2, 13 );
+      }
+      else if ( l_timezone < 0 )
+      {
+        NumericFont::render( l_graphics, 25, 2, 14 );
+      }
+      else
+      {
+        NumericFont::render( l_graphics, 25, 2, 15 );
+      }
+
+      /* And the timezone. */
+      NumericFont::render( l_graphics, 30, 2, abs(l_timezone)/10 );
+      NumericFont::render( l_graphics, 35, 2, abs(l_timezone)%10 );      
     }
-    l_blink = !l_blink;
+    else
+    {
+      /* Otherwise, render the current time, in hours minutes and seconds. */
+      rtc_get_datetime( &l_time );
+
+      /* Hours first. */
+      NumericFont::render( l_graphics, 10, 2, l_time.hour/10 );
+      NumericFont::render( l_graphics, 15, 2, l_time.hour%10 );
+
+      /* Then minutes. */
+      NumericFont::render( l_graphics, 22, 2, l_time.min/10 );
+      NumericFont::render( l_graphics, 27, 2, l_time.min%10 );
+
+      /* And lastly seconds. */
+      NumericFont::render( l_graphics, 34, 2, l_time.sec/10 );
+      NumericFont::render( l_graphics, 39, 2, l_time.sec%10 );
+
+      /* Blinking separators next. */
+      if ( l_blink )
+      {
+        l_graphics->pixel( pimoroni::Point( 20, 4 ) );
+        l_graphics->pixel( pimoroni::Point( 20, 6 ) );
+
+        l_graphics->pixel( pimoroni::Point( 32, 4 ) );
+        l_graphics->pixel( pimoroni::Point( 32, 6 ) );
+      }
+      l_blink = !l_blink;
+    }
+
+    /* If the brightness was adjusted, show the sliding scale on the right. */
+    if ( l_adjusted_brightness > 0 )
+    {
+      for ( l_index = 0; l_index < pimoroni::GalacticUnicorn::HEIGHT; l_index++ )
+      {
+        if ( l_index <= ( l_base_brightness * pimoroni::GalacticUnicorn::HEIGHT ) )
+        {
+          l_graphics->pixel( pimoroni::Point( 
+                              pimoroni::GalacticUnicorn::WIDTH - 1,
+                              pimoroni::GalacticUnicorn::HEIGHT - l_index - 1
+                            ) );
+        }
+      }
+      l_adjusted_brightness--;
+    }
 
     /* All drawing is complete - so, we ask the Unicorn to update. */
     l_unicorn->update( l_graphics );

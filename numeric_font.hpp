@@ -33,7 +33,7 @@
 class NumericFont
 {
   private:
-    static constexpr uint_fast8_t m_font_data[10][4] = {
+    static constexpr uint_fast8_t m_font_data[16][4] = {
       { 0x3e,0x41,0x41,0x3e },  // 0
       { 0x00,0x02,0x7f,0x00 },  // 1
       { 0x62,0x51,0x49,0x46 },  // 2
@@ -43,7 +43,13 @@ class NumericFont
       { 0x3c,0x4a,0x49,0x30 },  // 6
       { 0x01,0x61,0x19,0x07 },  // 7
       { 0x36,0x49,0x49,0x36 },  // 8
-      { 0x06,0x49,0x29,0x1e }   // 9
+      { 0x06,0x49,0x29,0x1e },  // 9
+      { 0x3f,0x40,0x40,0x3f },  // U
+      { 0x01,0x7f,0x01,0x00 },  // T
+      { 0x3e,0x41,0x41,0x22 },  // C
+      { 0x00,0x08,0x1c,0x08 },  // +
+      { 0x00,0x08,0x08,0x08 },  // -
+      { 0x00,0x14,0x14,0x14 }   // =
     };
   public:
     static void render( pimoroni::PicoGraphics *p_graphics, uint_fast8_t p_x, uint_fast8_t p_y, uint_fast8_t p_digit )
@@ -51,8 +57,8 @@ class NumericFont
       const uint_fast8_t *l_font_data;
       uint_fast8_t        l_row, l_column;
 
-      /* We only render single digits. */
-      if ( p_digit > 9 )
+      /* We only render single digits, and a half dozen symbols. */
+      if ( p_digit > 15 )
       {
         return;
       }
